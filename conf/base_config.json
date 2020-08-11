@@ -1,0 +1,34 @@
+{
+    "base_dir": "G:\\E\\osu!\\Songs",
+    "max_bpm": 280,
+
+    "wav_augment_pitch_shift": 3,
+    "wav_augment_noise": 0.01,
+    "wav_window": 0.025,
+    "wav_feature": 128,
+    "wav_dt_split": 8,
+
+    "dense_filter_size": 7,
+    "dense_growth_rate": 12,
+    "dense_drop_rate": 0.2,
+    "dense_nb_layers": 12,
+    "dense_lr": 0.0001,
+
+    "rhythm_batch_size": 1,
+    "rhythm_input_length": 1024,
+    "rhythm_min_density": 0.5,
+    "rhythm_step_per_epoch": 100,
+    "rhythm_epoch": 100,
+
+    "vae_latent_dim": 128,
+    "vae_intermediate_dim": 32,
+    "embedding_dim": 16,
+    "vae_lr": 0.0003,
+    "vae_step_per_epoch": 500,
+    "vae_epoch": 100,
+    "vae_strength_weight": 4,
+    "vae_input_length": 3072,
+
+    "multiprocess": false,
+    "workers": 3
+}
