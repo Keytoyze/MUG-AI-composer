@@ -12,7 +12,7 @@ from utils import OsuUtils, MapUtils, Logger
 
 
 @func_set_timeout(60)
-def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1):
+def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1.0, is_train=True):
     min_density = config["rhythm_min_density"]
     input_length = config['vae_input_length']
     strength_weight = np.expand_dims(MapUtils.get_index_to_strength_dict(key, bias=min_density),
@@ -20,7 +20,7 @@ def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1):
     kl_loss_weight = np.reshape(kl_loss_weight, (1, 1))
 
     raw_note_data = OsuUtils.beatmap_to_numpy(config, js)  # (T, K, 2)
-    raw_audio_input = audio.from_osu_json(config, js, True)  # (T * 4, 128)
+    raw_audio_input = audio.from_osu_json(config, js, is_train)  # (T * 4, 128)
     note_data = MapUtils.format_length(raw_note_data, input_length)
     audio_input = MapUtils.format_length(raw_audio_input, input_length * 4)
     # Logger.log("%d -> %d, %d -> %d" % (raw_note_data.shape[0], note_data.shape[0], raw_audio_input.shape[0], audio_input.shape[0]))
@@ -30,14 +30,14 @@ def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1):
 
     y_true = MapUtils.array_to_index(note_data_decoder, key, one_hot=True)
     decoder_input = MapUtils.array_to_index(note_data_decoder, key, one_hot=False)
-    decoder_input[1:, 0] = decoder_input[:input_length - 1, 0]  # right shift
-    decoder_input[0, 0] = 0
-    decoder_mask = np.random.choice([0, 1], decoder_input.shape,
-                                    p=[1 - teacher_forcing_p, teacher_forcing_p])
-    decoder_input = decoder_input * decoder_mask
-
-    # TODO
-    # decoder_input = np.zeros_like(decoder_input)
+    if is_train:
+        decoder_input[1:, 0] = decoder_input[:input_length - 1, 0]  # right shift
+        decoder_input[0, 0] = 0
+        decoder_mask = np.random.choice([0, 1], decoder_input.shape,
+                                        p=[1 - teacher_forcing_p, teacher_forcing_p])
+        decoder_input = decoder_input * decoder_mask
+    else:
+        decoder_input = np.zeros_like(decoder_input)
     rhythm_base = MapUtils.get_beatmap_base_rhythm(config, note_data)
     encoder_input = MapUtils.augment_map(note_data, reorder=True)
 
@@ -68,7 +68,7 @@ def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1):
             ], y_true
 
 
-def get_item(star_to_paths, config, key, kl_loss_weight=0, teacher_forcing_p=1):
+def get_item(star_to_paths, config, key, kl_loss_weight=0, teacher_forcing_p=1.0):
     osu_path = ""
     while True:
         try:
@@ -126,7 +126,7 @@ class VAETrainGenerator(Sequence):
 
     def __getitem__(self, index):
         # decay teacher forcing probability
-        p = 0.5 * (1 + np.cos(np.pi * (self.current_step) / float(self.total_step)))
+        p = 1 - self.current_step / float(self.total_step)
         Logger.log("teacher forcing decay: %lf (%d / %d)" % (p, self.current_step, self.total_step))
         self.current_step += 1
 
@@ -151,7 +151,7 @@ class VAETestGenerator(Sequence):
     def __getitem__(self, index):
         path = self.osu_paths[index][0]
         js = OsuUtils.parse_beatmap(path, self.config)
-        x, y = get_item_by_path(js, self.config, self.key)
+        x, y = get_item_by_path(js, self.config, self.key, is_train=False)
         return x, None
 
     def __iter__(self):

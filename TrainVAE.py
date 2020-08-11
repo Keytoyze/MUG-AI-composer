@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     config = json.load(open(os.path.join("conf", "base_config.json")))
     train_dir = config['base_dir']
-    start_epoch = 0
+    start_epoch = 16
 
     print("Build model ...")
     key = 4
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     vae.build_encoder()
     vae.build_decoder()
     vae.build_train_vae()
-    vae.load_weight("out\\models\\pre_vae_000046_0.6206_0.8339_0.6925_0.8869.hdf5")
+    vae.load_weight("out\\models\\teach_vae_000016_0.5983_0.8197_0.6882_0.8844.hdf5")
 
     model = vae.vae_model
     model.compile(optimizer=RAdam(lr=config['vae_lr']))
@@ -80,13 +80,14 @@ if __name__ == "__main__":
 
     train_paths = [x for x in osu_paths if hash(x[0]) % 40 != 5]
     test_paths = [x for x in osu_paths if hash(x[0]) % 40 == 5]
-    generator = VAETrainGenerator(train_paths, config, key)
+    generator = VAETrainGenerator(train_paths, config, key, init_step=start_epoch * config['vae_step_per_epoch'])
     test_generater = VAETestGenerator(test_paths, config, key)
     print("Train: %d, Test: %d" % (len(train_paths), len(test_paths)))
     print(test_paths)
 
-    if os.path.exists("logs/log.log"):
-        os.remove("logs/log.log")
+    if start_epoch == 0:
+        if os.path.exists("logs/log.log"):
+            os.remove("logs/log.log")
 
     checkpoint = ModelCheckpoint("out\\models\\teach_vae_{epoch:06d}_{acc:.4f}_"
                                  "{top5_acc:.4f}_{overmap_acc:.4f}_{lostnote_acc:.4f}.hdf5",
