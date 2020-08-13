@@ -70,7 +70,7 @@ def get_beatmap_base_rhythm(config, array):
     result = np.zeros(rhythm_array.shape[0])
     # noinspection PyTypeChecker
     for i in range(result.shape[0]):
-        result[i] = math.cos((i - base_index) / 8 / (2 * math.pi))
+        result[i] = math.cos((i - base_index) / 8 * (2 * math.pi))
     return np.expand_dims(result, axis=1)
 
 
@@ -175,7 +175,12 @@ def compose(vae_model, config, base_js, audio_js):
     audio_note = format_length(raw_audio_note, input_length)
     rhythm_base = get_beatmap_base_rhythm(config, audio_note)
 
-    vae_model.predict(base_note, audio_input, rhythm_base)
+    indices = vae_model.predict(base_note, audio_input, rhythm_base)
+    result = []
+    for index in indices:
+        result.append(index_to_note(index, vae_model.key))
+    result = np.array(result)
+    return result
 
 if __name__ == "__main__":
     for i in range(3 ** 4):
