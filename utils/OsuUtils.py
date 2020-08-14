@@ -3,6 +3,7 @@ import os, json
 import random, traceback
 import numpy as np
 from utils import MapUtils
+import zipfile
 
 _temp_file = os.path.abspath(os.path.join("out", "star_%d.txt") % random.randint(0, 1000000))
 # print("use temp file: " + temp_file)
@@ -14,6 +15,35 @@ new_mania_command = 'python "%s"' % (
 
 def read_item(line):
     return line.split(":")[-1].strip()
+
+
+def encode_beatmap(osz_path, js):
+    template = open(os.path.join("template", "osu_v14.osu")).read()
+    notes = []
+    column_width = int(512 / js['key'])
+    for note in js['notes']:
+        column = (note['column'] + 0.5) * column_width
+        if note['end'] == note['start']:
+            notes.append("%d,192,%d,1,0,0:0:0:0:" % (column, note['start']))
+        else:
+            notes.append("%d,192,%d,128,8,%d:0:0:0:0:" % (column, note['start'], note['end']))
+    template = template.format(
+        bgm=os.path.basename(js['bgm_path']),
+        title=js['title'],
+        artist=js['artist'],
+        key=js['key'],
+        od=js['od'],
+        offset=js['offset'],
+        t=60000 / js['bpm'],
+        hit_objects="\n".join(notes)
+    )
+    map_name = "%s - %s (AI) [AI_compose].osu" % (js['artist'], js['title'])
+    temp_map = os.path.join("out", "temp_map.osu")
+    with open(temp_map, "w") as f:
+        f.write(template)
+    with zipfile.ZipFile(osz_path, 'w', zipfile.ZIP_DEFLATED) as f:
+        f.write(temp_map, map_name)
+        f.write(js['bgm_path'], os.path.basename(js['bgm_path']))
 
 
 def parse_beatmap(osu_path, config, meta_only=False):

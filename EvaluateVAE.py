@@ -3,6 +3,7 @@ if __name__ == "__main__":
     import os
     # os.environ["CUDA_VISIBLE_DEVICES"]="-1"
     import tensorflow as tf
+    import numpy as np
 
     if tf.__version__.startswith('1.'):  # tensorflow 1
         config = tf.ConfigProto()  # allow_soft_placement=True
@@ -22,7 +23,7 @@ if __name__ == "__main__":
 
     map_base = "G:\\E\\osu!\\Songs\\575053 Camellia - Exit This Earth's Atomosphere\\Camellia - Exit This Earth's Atomosphere (Protastic101) [11.186 kms].osu"
     map_audio = "G:\\E\\osu!\\Songs\\575053 Camellia - Exit This Earth's Atomosphere\\Camellia - Exit This Earth's Atomosphere (Protastic101) [11.186 kms].osu"
-    weight = "out\\models\\vae_000022_0.5546_0.6064_0.7446_0.8736.hdf5"
+    weight = "out\\models\\r_vae_000024_0.8211_0.9923_0.7081_0.7589.hdf5"
     map_base_js = OsuUtils.parse_beatmap(map_base, config)
     map_audio_js = OsuUtils.parse_beatmap(map_audio, config)
 
@@ -30,9 +31,16 @@ if __name__ == "__main__":
     vae.build_encoder()
     vae.build_decoder()
     vae.load_weight(weight)
-    vae.decoder_model.save_weights("test1.hdf5", "h5")
 
-    MapUtils.compose(vae, config, map_base_js, map_audio_js)
+    result = MapUtils.compose(vae, config, map_base_js, map_audio_js)
+    js = map_audio_js
+    # np.savetxt("out.txt", result[:, :, 0], "%d")
+    result = MapUtils.numpy_to_beatmap(result, js['dt'], js['offset'])
+    js['notes'] = result
+    js['title'] = "test"
+    js['artist'] = "test_artist"
+    js['od'] = "8"
+    OsuUtils.encode_beatmap("test.osz", js)
     # import h5py
     #
     # with h5py.File("test1.hdf5", 'r') as f:

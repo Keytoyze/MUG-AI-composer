@@ -69,8 +69,9 @@ def get_beatmap_base_rhythm(config, array):
     base_index = np.argmax(backet)
     result = np.zeros(rhythm_array.shape[0])
     # noinspection PyTypeChecker
+    weights = [1, -1, -1 / 3, -1, 1 / 3, -1, -1 / 3, -1]
     for i in range(result.shape[0]):
-        result[i] = math.cos((i - base_index) / 8 * (2 * math.pi))
+        result[i] = weights[(i - base_index) % 8]
     return np.expand_dims(result, axis=1)
 
 
@@ -150,6 +151,42 @@ def beatmap_to_numpy(config, osu_json):
     return data
 
 
+def numpy_to_beatmap(array, dt, offset):
+    K = array.shape[1]
+    T = array.shape[0]
+    notes = []
+    holding = [-1] * K
+    t = 0
+    for i in range(T):
+        t = i * dt + offset
+        for j in range(K):
+            if array[i][j][0] == 1:  # start
+                if holding[j] != -1:
+                    notes.append({
+                        'start': holding[j],
+                        'column': j,
+                        'end': t
+                    })
+                    holding[j] = -1
+                holding[j] = t
+            elif array[i][j][1] != 1:  # no LN hold, no start
+                if holding[j] != -1:
+                    notes.append({
+                        'start': holding[j],
+                        'column': j,
+                        'end': t
+                    })
+                    holding[j] = -1
+    for j in range(K):
+        if holding[j] != -1:
+            notes.append({
+                'start': holding[j],
+                'column': j,
+                'end': t
+            })
+    return notes
+
+
 def format_length(np_array, length):
     if np_array.shape[0] > length:
         if len(np_array.shape) == 3:
@@ -181,6 +218,7 @@ def compose(vae_model, config, base_js, audio_js):
         result.append(index_to_note(index, vae_model.key))
     result = np.array(result)
     return result
+
 
 if __name__ == "__main__":
     for i in range(3 ** 4):

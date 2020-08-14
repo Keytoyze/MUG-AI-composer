@@ -7,6 +7,8 @@
     "wav_window": 0.025,
     "wav_feature": 128,
     "wav_dt_split": 8,
+    "strength_dim": 2,
+    "ln_weight": 0.1,
 
     "dense_filter_size": 7,
     "dense_growth_rate": 12,
@@ -23,10 +25,10 @@
     "vae_latent_dim": 128,
     "vae_intermediate_dim": 32,
     "embedding_dim": 16,
-    "vae_lr": 0.0003,
+    "vae_lr": 0.0001,
     "vae_step_per_epoch": 500,
     "vae_epoch": 100,
-    "vae_strength_weight": 4,
+    "vae_strength_weight": 2,
     "vae_input_length": 3072,
 
     "multiprocess": false,

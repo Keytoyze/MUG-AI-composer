@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     config = json.load(open(os.path.join("conf", "base_config.json")))
     train_dir = config['base_dir']
-    start_epoch = 16
+    start_epoch = 19
 
     print("Build model ...")
     key = 4
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     vae.build_encoder()
     vae.build_decoder()
     vae.build_train_vae()
-    vae.load_weight("out\\models\\teach_vae_000016_0.5983_0.8197_0.6882_0.8844.hdf5")
+    vae.load_weight("out\\models\\r_vae_000019_0.8175_0.9914_0.6791_0.7405.hdf5")
 
     model = vae.vae_model
     model.compile(optimizer=RAdam(lr=config['vae_lr']))
@@ -83,13 +83,13 @@ if __name__ == "__main__":
     generator = VAETrainGenerator(train_paths, config, key, init_step=start_epoch * config['vae_step_per_epoch'])
     test_generater = VAETestGenerator(test_paths, config, key)
     print("Train: %d, Test: %d" % (len(train_paths), len(test_paths)))
-    print(test_paths)
+    # print(test_paths)
 
     if start_epoch == 0:
         if os.path.exists("logs/log.log"):
             os.remove("logs/log.log")
 
-    checkpoint = ModelCheckpoint("out\\models\\teach_vae_{epoch:06d}_{acc:.4f}_"
+    checkpoint = ModelCheckpoint("out\\models\\rr_vae_{epoch:06d}_{acc:.4f}_"
                                  "{top5_acc:.4f}_{overmap_acc:.4f}_{lostnote_acc:.4f}.hdf5",
                                  verbose=0, save_best_only=False, save_weights_only=True)
     warm_up_cosine_decay_scheduler = WarmUpCosineDecayScheduler(

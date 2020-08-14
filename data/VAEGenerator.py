@@ -12,12 +12,13 @@ from utils import OsuUtils, MapUtils, Logger
 
 
 @func_set_timeout(60)
-def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1.0, is_train=True):
+def get_item_by_path(js, config, key, kl_loss_weight=0, strength_teacher_p=1.0, is_train=True):
     min_density = config["rhythm_min_density"]
     input_length = config['vae_input_length']
-    strength_weight = np.expand_dims(MapUtils.get_index_to_strength_dict(key, bias=min_density),
-                                     axis=0)
+    # strength_weight = np.expand_dims(MapUtils.get_index_to_strength_dict(key, bias=min_density),
+    #                                  axis=0)
     kl_loss_weight = np.reshape(kl_loss_weight, (1, 1))
+    strength_teacher_p = np.reshape(strength_teacher_p, (1, 1))
 
     raw_note_data = OsuUtils.beatmap_to_numpy(config, js)  # (T, K, 2)
     raw_audio_input = audio.from_osu_json(config, js, is_train)  # (T * 4, 128)
@@ -26,47 +27,44 @@ def get_item_by_path(js, config, key, kl_loss_weight=0, teacher_forcing_p=1.0, i
     # Logger.log("%d -> %d, %d -> %d" % (raw_note_data.shape[0], note_data.shape[0], raw_audio_input.shape[0], audio_input.shape[0]))
     # note_data = note_data[:t, :, :]
     # audio_input = audio_input[:t * 4, :]
-    note_data_decoder = MapUtils.augment_map(note_data, reorder=False)
+    note_data_augment = MapUtils.augment_map(note_data, reorder=False)
 
-    y_true = MapUtils.array_to_index(note_data_decoder, key, one_hot=True)
-    decoder_input = MapUtils.array_to_index(note_data_decoder, key, one_hot=False)
-    if is_train:
-        decoder_input[1:, 0] = decoder_input[:input_length - 1, 0]  # right shift
-        decoder_input[0, 0] = 0
-        decoder_mask = np.random.choice([0, 1], decoder_input.shape,
-                                        p=[1 - teacher_forcing_p, teacher_forcing_p])
-        decoder_input = decoder_input * decoder_mask
-    else:
-        decoder_input = np.zeros_like(decoder_input)
+    y_true = MapUtils.array_to_index(note_data_augment, key, one_hot=True)
+    strength_true = np.mean(note_data, axis=1)  # (T, 2)
+    strength_true = np.where(strength_true == 0, -1, strength_true)
+    pre_notes_input = MapUtils.array_to_index(note_data_augment, key, one_hot=False)
+    pre_notes_input[1:, 0] = pre_notes_input[:input_length - 1, 0]  # right shift
+    pre_notes_input[0, 0] = 0
     rhythm_base = MapUtils.get_beatmap_base_rhythm(config, note_data)
-    encoder_input = MapUtils.augment_map(note_data, reorder=True)
+    style_input = MapUtils.augment_map(note_data, reorder=True)
 
     # debug only
-    # np.savetxt("out\\train\\encoder_input.txt",
-    #            encoder_input[:, :, 0] + encoder_input[:, :, 1] * 10, "%.3lf")
-    # np.savetxt("out\\train\\audio_input.txt", audio_input, "%.3lf")
-    # np.savetxt("out\\train\\rhythm_base.txt", rhythm_base, "%.3lf")
-    # np.savetxt("out\\train\\decoder_input.txt", decoder_input, "%.3lf")
-    # np.savetxt("out\\train\\y_true.txt", y_true, "%.3lf")
-    # np.savetxt("out\\train\\strength_weight.txt", strength_weight, "%.3lf")
-    # np.savetxt("out\\train\\kl_loss_weight.txt", kl_loss_weight, "%.3lf")
+
+    np.savetxt("out\\train\\style_input.txt",
+               style_input[:, :, 0] + style_input[:, :, 1] * 10, "%.3lf")
+    np.savetxt("out\\train\\audio_input.txt", audio_input, "%.3lf")
+    np.savetxt("out\\train\\rhythm_base.txt", rhythm_base, "%.3lf")
+    np.savetxt("out\\train\\pre_notes_input.txt", pre_notes_input, "%.3lf")
+    np.savetxt("out\\train\\y_true.txt", y_true, "%.3lf")
+    np.savetxt("out\\train\\strength_true.txt", strength_true, "%.3lf")
 
     # reshape
-    encoder_input = np.expand_dims(encoder_input, axis=0)
+    style_input = np.expand_dims(style_input, axis=0)
     audio_input = np.expand_dims(audio_input, axis=0)
     rhythm_base = np.expand_dims(rhythm_base, axis=0)
-    decoder_input = np.expand_dims(decoder_input, axis=0)
+    pre_notes_input = np.expand_dims(pre_notes_input, axis=0)
     y_true = np.expand_dims(y_true, axis=0)
+    strength_true = np.expand_dims(strength_true, axis=0)
 
-    return [encoder_input,
+    return [style_input,
             audio_input,
             rhythm_base,
             kl_loss_weight,
-            decoder_input,
-            strength_weight,
-            y_true
+            pre_notes_input,
+            y_true,
+            strength_true,
+            strength_teacher_p
             ], y_true
-
 
 def get_item(star_to_paths, config, key, kl_loss_weight=0, teacher_forcing_p=1.0):
     osu_path = ""
@@ -126,8 +124,9 @@ class VAETrainGenerator(Sequence):
 
     def __getitem__(self, index):
         # decay teacher forcing probability
-        p = 1 - self.current_step / float(self.total_step)
-        Logger.log("teacher forcing decay: %lf (%d / %d)" % (p, self.current_step, self.total_step))
+        p = np.clip(1 - self.current_step / float(self.total_step) * 2, 0, 1)
+        # p = 0
+        # Logger.log("teacher forcing decay: %lf (%d / %d)" % (p, self.current_step, self.total_step))
         self.current_step += 1
 
         x, y = get_item(self.star_to_paths, self.config, self.key, teacher_forcing_p=p)
@@ -151,7 +150,7 @@ class VAETestGenerator(Sequence):
     def __getitem__(self, index):
         path = self.osu_paths[index][0]
         js = OsuUtils.parse_beatmap(path, self.config)
-        x, y = get_item_by_path(js, self.config, self.key, is_train=False)
+        x, y = get_item_by_path(js, self.config, self.key, is_train=False, strength_teacher_p=0.0)
         return x, None
 
     def __iter__(self):

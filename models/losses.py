@@ -28,12 +28,12 @@ class CCELoss(Layer):
 class StrengthLoss(Layer):
 
     def call(self, inputs, **kwargs):
-        y_true_notes, y_true_strength, decoder_strength = inputs
+        y_true_notes, y_true_strength, predict_strength = inputs
         density = K.mean(y_true_notes)
-        blank_weight = 2 * density / (2 - density)
+        blank_weight = 2 * density# / (2 - density)
         note_weight = 2 - blank_weight
         sample_weight = y_true_notes * (note_weight - blank_weight) + blank_weight
-        strength_loss = K.mean(K.binary_crossentropy(y_true_strength, decoder_strength)
+        strength_loss = K.mean(K.square(y_true_strength - predict_strength)
                                * sample_weight)
         return strength_loss
 
